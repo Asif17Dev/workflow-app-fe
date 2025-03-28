@@ -1,6 +1,7 @@
 "use client";
 import { auth } from "@/lib/firebase";
 import { setUser } from "@/redux/reducer/userReducer";
+import { CircularProgress } from "@mui/material";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -44,7 +45,16 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <ToastContainer />
-      {loading ? "loading" : children}
+      {loading ? (
+        <div className="bg-[#FDFBF6] h-screen flex items-center justify-center">
+          <CircularProgress
+            sx={{ margin: "auto", display: "block", color: "#1e1e1e" }}
+            size={20}
+          />
+        </div>
+      ) : (
+        children
+      )}
     </>
   );
 };
