@@ -1,103 +1,125 @@
-import Image from "next/image";
+"use client";
+import WorkflowsTable from "@/components/WorkflowTable";
+import { auth } from "@/lib/firebase";
+import { fetchWorkflows, getTotalWorkflowsCount } from "@/lib/firestore";
+import { removeUser } from "@/redux/reducer/userReducer";
+import { Button, IconButton, InputAdornment, TextField } from "@mui/material";
+import { IconLogout, IconPlus, IconSearch } from "@tabler/icons-react";
+import { signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter();
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [lastDocs, setLastDocs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    loadWorkflows(1, true);
+    fetchTotalCount();
+  }, [searchTerm]);
+
+  const fetchTotalCount = async () => {
+    const count = await getTotalWorkflowsCount(searchTerm);
+    setTotalPages(Math.ceil(count / 10));
+  };
+
+  const loadWorkflows = async (newPage: number, reset = false) => {
+    setLoading(true);
+
+    try {
+      const lastDoc = newPage > 1 ? lastDocs[newPage - 2] : null;
+      const { workflows: newWorkflows, lastVisible } = await fetchWorkflows(
+        searchTerm,
+        lastDoc
+      );
+
+      setWorkflows(reset ? newWorkflows : [...workflows, ...newWorkflows]);
+
+      if (lastVisible && newPage > lastDocs.length) {
+        setLastDocs((prev) => [...prev, lastVisible]);
+      }
+    } catch (error) {
+      console.error("Failed to load workflows:", error);
+    }
+
+    setLoading(false);
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
+    setPage(1);
+    setLastDocs([]);
+  };
+
+  const handlePageChange = (_: any, newPage: number) => {
+    if (newPage !== page) {
+      setPage(newPage);
+      loadWorkflows(newPage);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      dispatch(removeUser());
+      router.push("/login");
+    } catch (error) {
+      console.error("❌ Logout failed:", error);
+    }
+  };
+
+  return (
+    <div className="p-8 bg-[#FDFBF6] h-screen overflow-y-auto ">
+      <div className="flex items-center mb-6 gap-2">
+        <h5 className="font-bold text-xl">Workflow Builder</h5>
+
+        <IconButton size="small" onClick={handleLogout}>
+          <IconLogout size={16} />
+        </IconButton>
+      </div>
+      <div className="flex justify-between items-center mb-4 gap-4">
+        <TextField
+          placeholder="Search By Workflow Name/ID"
+          variant="outlined"
+          fullWidth
+          value={searchTerm}
+          onChange={handleSearchChange}
+          size="small"
+          className="bg-white !h-8 max-w-2xs outline-amber-600"
+          style={{ height: "32px !important" }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconSearch size={16} color="gray" />
+              </InputAdornment>
+            ),
+            className: "h-8 !text-sm",
+          }}
+        />
+        <Button
+          className="!h-8 !bg-[#221F20] !text-sm !capitalize"
+          variant="contained"
+          startIcon={<IconPlus size={16} />}
+          onClick={() => router.push("/new-workflow")}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Add new workflow
+        </Button>
+      </div>
+      <WorkflowsTable
+        handlePageChange={handlePageChange}
+        loading={loading}
+        page={page}
+        totalPages={totalPages}
+        workflows={workflows}
+      />
     </div>
   );
 }
