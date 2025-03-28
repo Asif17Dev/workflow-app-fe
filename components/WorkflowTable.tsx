@@ -185,9 +185,6 @@ const WorkflowsTable = ({
       } catch (error) {
         console.error("❌ Error processing workflow:", error);
         toast.error("Workflow operations faild");
-      } finally {
-        setEid(undefined);
-        toast.success("Workflow operations runned successfully");
       }
     }
 
@@ -198,16 +195,26 @@ const WorkflowsTable = ({
       timestamp: Date.now(),
     });
 
+    if (opId && id === opId) {
+      handleOperations(opId, true);
+    }
+
+    setEid(undefined);
+
+    toast.success("Workflow operations runned successfully");
+
     console.log("✅ Workflow execution completed.");
   };
 
-  const handleOperations = async (id: string) => {
-    if (id == opId) return setOpId(undefined);
+  const handleOperations = async (id: string, reload?: boolean) => {
+    if (id == opId && !reload) return setOpId(undefined);
     try {
-      setOpId(id);
-      setLoading(true);
-      setOperations([]);
+      if (!reload) {
+        setOpId(id);
+        setOperations([]);
+      }
 
+      setLoading(true);
       const logs = await fetchWorkflowExecutions(id);
       setOperations(logs);
     } catch (error) {
