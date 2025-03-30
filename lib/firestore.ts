@@ -86,7 +86,7 @@ export const fetchWorkflows = async (
         return { workflows, lastVisible: null };
       }
 
-      // 🔹 Query by Name (Partial Match)
+      // 🔹 Query by Name (Partial Match - Using Range)
       const nameQuery = query(
         collection(db, "workflows"),
         where("name", ">=", searchTerm),
@@ -100,15 +100,23 @@ export const fetchWorkflows = async (
         ? nameQuerySnapshot.docs[nameQuerySnapshot.docs.length - 1]
         : null;
 
-      const nameWorkflows = nameQuerySnapshot.docs.map((doc) => ({
+      let nameWorkflows = nameQuerySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      workflows = [...nameWorkflows];
-
-      // 🔹 Query all and filter by ID containing searchTerm
+      // 🔹 Query All Documents & Filter By Name (`LIKE "%query%"`)
       const allQuerySnapshot = await getDocs(collection(db, "workflows"));
+      const filteredWorkflows = allQuerySnapshot.docs
+        .filter((doc) =>
+          doc.data().name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+      // 🔹 Filter IDs Containing SearchTerm (`LIKE "%query%"`)
       const idFilteredWorkflows = allQuerySnapshot.docs
         .filter((doc) => doc.id.includes(searchTerm)) // 🔥 Filter by ID containing searchTerm
         .map((doc) => ({
@@ -118,9 +126,12 @@ export const fetchWorkflows = async (
 
       // 🔹 Merge results while avoiding duplicates
       const allResults = [
-        ...workflows,
+        ...nameWorkflows,
+        ...filteredWorkflows.filter(
+          (wf) => !nameWorkflows.some((existing) => existing.id === wf.id)
+        ),
         ...idFilteredWorkflows.filter(
-          (wf) => !workflows.some((existing) => existing.id === wf.id)
+          (wf) => !nameWorkflows.some((existing) => existing.id === wf.id)
         ),
       ].slice(0, PAGE_SIZE); // Ensure we limit results
 
@@ -154,6 +165,7 @@ export const fetchWorkflows = async (
     throw error;
   }
 };
+
 export const getTotalWorkflowsCount = async (searchTerm = "") => {
   try {
     let workflowsQuery: any = collection(db, "workflows");
@@ -166,7 +178,7 @@ export const getTotalWorkflowsCount = async (searchTerm = "") => {
 
       if (!idQuerySnapshot.empty) return 1;
 
-      // 🔹 Query by Name
+      // 🔹 Query by Name (Partial Match)
       workflowsQuery = query(
         collection(db, "workflows"),
         where("name", ">=", searchTerm),
@@ -176,13 +188,18 @@ export const getTotalWorkflowsCount = async (searchTerm = "") => {
       const nameSnapshot = await getDocs(workflowsQuery);
       const nameCount = nameSnapshot.size;
 
-      // 🔹 Query all and filter by ID containing searchTerm
+      // 🔹 Query all and filter by Name (`LIKE "%query%"`)
       const allQuerySnapshot = await getDocs(collection(db, "workflows"));
+      const filteredNameCount = allQuerySnapshot.docs.filter((doc) =>
+        doc.data().name.toLowerCase().includes(searchTerm.toLowerCase())
+      ).length;
+
+      // 🔹 Query all and filter by ID containing SearchTerm
       const idFilteredCount = allQuerySnapshot.docs.filter((doc) =>
         doc.id.includes(searchTerm)
       ).length;
 
-      return nameCount + idFilteredCount;
+      return nameCount + filteredNameCount + idFilteredCount;
     }
 
     // Default count

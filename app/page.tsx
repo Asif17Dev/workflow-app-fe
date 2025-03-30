@@ -22,16 +22,22 @@ export default function Home() {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    loadWorkflows(1, true);
+    const controller = new AbortController(); // Abort previous requests
+    loadWorkflows(1, true, controller);
     fetchTotalCount();
+
+    return () => controller.abort(); // Cleanup previous request
   }, [searchTerm]);
 
   const fetchTotalCount = async () => {
     const count = await getTotalWorkflowsCount(searchTerm);
     setTotalPages(Math.ceil(count / 10));
   };
-
-  const loadWorkflows = async (newPage: number, reset = false) => {
+  const loadWorkflows = async (
+    newPage: number,
+    reset = false,
+    controller?: AbortController
+  ) => {
     setLoading(true);
 
     try {
@@ -41,13 +47,19 @@ export default function Home() {
         lastDoc
       );
 
-      setWorkflows(reset ? newWorkflows : [...workflows, ...newWorkflows]);
+      if (controller?.signal.aborted) return; // Prevent race condition issues
+
+      setWorkflows((prev) =>
+        reset ? newWorkflows : [...prev, ...newWorkflows]
+      );
 
       if (lastVisible && newPage > lastDocs.length) {
         setLastDocs((prev) => [...prev, lastVisible]);
       }
-    } catch (error) {
-      console.error("Failed to load workflows:", error);
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("Failed to load workflows:", error);
+      }
     }
 
     setLoading(false);
